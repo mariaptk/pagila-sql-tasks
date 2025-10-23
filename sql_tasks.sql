@@ -6,29 +6,22 @@ SELECT c.name,
 FROM category c
 	JOIN film_category fc
 	ON c.category_id = fc.category_id
-GROUP BY c.name, fc.category_id
+GROUP BY c.name
 ORDER BY COUNT(fc.film_id) DESC;
 
 -- Output the 10 actors whose movies rented the most, 
 -- sorted in descending order.
 
 SELECT
-	a.actor_id, 
 	a.first_name, 
-	a.last_name, 
-	a.last_update,
+	a.last_name,
 	COUNT(r.rental_id) AS rental_count
 FROM actor a
-	JOIN film_actor fa
-	ON a.actor_id = fa.actor_id
-	JOIN film f
-	ON f.film_id = fa.film_id
-	JOIN inventory i
-	ON i.film_id = f.film_id
-	JOIN rental r
-	ON i.inventory_id = r.inventory_id
+	JOIN film_actor fa ON a.actor_id = fa.actor_id
+	JOIN inventory i ON i.film_id = fa.film_id
+	JOIN rental r ON i.inventory_id = r.inventory_id
 GROUP BY
-	a.actor_id, a.first_name, a.last_name, a.last_update
+	a.actor_id, a.first_name, a.last_name
 ORDER BY
 	rental_count DESC
 LIMIT 10;
@@ -76,12 +69,11 @@ FROM public.actor a
 WHERE c.name = 'Children'
 GROUP BY a.actor_id, a.first_name, a.last_name
 )
-SELECT actor_id,
-	first_name,
+SELECT first_name,
 	last_name,
 	film_count
 FROM actor_category
-WHERE count_rank  4
+WHERE count_rank < 4
 ORDER BY film_count DESC;
 
 -- Output cities with the number of active and inactive customers 
@@ -96,46 +88,62 @@ FROM public.city c
 	JOIN public.address a ON c.city_id = a.city_id
 	JOIN public.customer cst ON cst.address_id = a.address_id
 GROUP BY c.city
-ORDER BY SUM(cst.active) DESC;
+ORDER BY SUM(CASE WHEN cst.active = 0 THEN 1 ELSE 0 END) DESC;
 
 -- Output the category of movies that have the highest number 
 -- of total rental hours in the city (customer.address_id in this city) 
 -- and that start with the letter “a”. Do the same for cities that 
 -- have a “-” in them. Write everything in one query.
 
-WITH category_rental_time AS(
-SELECT 
-	ctg.name as category_name, 
-	c.city, 
-	CASE 
-            WHEN c.city LIKE 'A%' THEN 'case1'
-            WHEN c.city LIKE '%-%' THEN 'case2'
-        END as city_group,
-	SUM(r.return_date - r.rental_date) as rental_time
-FROM public.category ctg
-	JOIN public.film_category fc ON fc.category_id = ctg.category_id
-	JOIN public.inventory i ON i.film_id = fc.film_id
-	JOIN public.rental r ON r.inventory_id = i.inventory_id
-	JOIN public.customer cst ON cst.store_id = i.store_id
-	JOIN public.address a ON cst.address_id = a.address_id
-	JOIN public.city c ON c.city_id = a.city_id
-WHERE (c.city LIKE 'A%' OR c.city LIKE '%-%')
-	AND r.return_date IS NOT NULL
-	AND r.rental_date IS NOT NULL
-GROUP BY c.city, ctg.name, city_group
+WITH category_rental_time AS (
+    SELECT 
+        ctg.name AS category_name, 
+        c.city, 
+        'case1' AS city_group,
+        SUM(EXTRACT(EPOCH FROM (r.return_date - r.rental_date)) / 3600) AS rental_time_hours
+    FROM public.category ctg
+        JOIN public.film_category fc ON fc.category_id = ctg.category_id
+        JOIN public.inventory i ON i.film_id = fc.film_id
+        JOIN public.rental r ON r.inventory_id = i.inventory_id
+        JOIN public.customer cst ON cst.customer_id = r.customer_id
+        JOIN public.address a ON cst.address_id = a.address_id
+        JOIN public.city c ON c.city_id = a.city_id
+    WHERE c.city LIKE 'A%'
+      AND r.return_date IS NOT NULL
+      AND r.rental_date IS NOT NULL
+    GROUP BY c.city, ctg.name
+    UNION ALL
+    SELECT 
+        ctg.name AS category_name, 
+        c.city, 
+        'case2' AS city_group,
+        SUM(EXTRACT(EPOCH FROM (r.return_date - r.rental_date)) / 3600) AS rental_time_hours
+    FROM public.category ctg
+        JOIN public.film_category fc ON fc.category_id = ctg.category_id
+        JOIN public.inventory i ON i.film_id = fc.film_id
+        JOIN public.rental r ON r.inventory_id = i.inventory_id
+        JOIN public.customer cst ON cst.customer_id = r.customer_id
+        JOIN public.address a ON cst.address_id = a.address_id
+        JOIN public.city c ON c.city_id = a.city_id
+    WHERE c.city LIKE '%-%'
+      AND r.return_date IS NOT NULL
+      AND r.rental_date IS NOT NULL
+    GROUP BY c.city, ctg.name
 ),
 category_rank AS (
-SELECT DISTINCT
-	city,
-	category_name,
-	rental_time,
-	city_group,
-	DENSE_RANK() OVER (PARTITION BY city_group, city ORDER BY rental_time DESC) as rank
-FROM category_rental_time
+    SELECT
+        city,
+        category_name,
+        rental_time_hours,
+        city_group,
+        DENSE_RANK() OVER (PARTITION BY city_group, city ORDER BY rental_time_hours DESC) AS rk
+    FROM category_rental_time
 )
-SELECT city,
-	category_name,
-	city_group
+SELECT
+    city,
+    category_name,
+    city_group,
+    rental_time_hours
 FROM category_rank
-WHERE rank = 1
+WHERE rk = 1
 ORDER BY city_group, city, category_name;
