@@ -146,3 +146,26 @@ SELECT
 FROM category_rank
 WHERE rk = 1
 ORDER BY city_group, city, category_name;
+
+select customer_id
+from customer;
+
+select store_id
+from store;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
