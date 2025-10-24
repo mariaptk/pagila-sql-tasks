@@ -23,14 +23,15 @@ FROM actor a
 GROUP BY
 	a.actor_id, a.first_name, a.last_name
 ORDER BY
-	rental_count DESC
+	COUNT(r.rental_id) DESC
 LIMIT 10;
 	
 -- Output the category of movies on which the most money was spent.
 WITH total_amount_category AS (
 SELECT 
 	DISTINCT c.name, 
-	SUM(p.amount) as total_amount
+	SUM(p.amount) as total_amount,
+	DENSE_RANK() OVER(ORDER BY SUM(p.amount) DESC) as rank_amount
 FROM public.payment p
 	JOIN public.rental r ON r.rental_id = p.rental_id
 	JOIN public.inventory i ON i.inventory_id = r.inventory_id
@@ -40,8 +41,7 @@ GROUP BY c.name
 )
 SELECT name, total_amount
 FROM total_amount_category
-WHERE total_amount = (SELECT MAX(total_amount) 
-FROM total_amount_category);
+WHERE rank_amount = 1;
 
 -- Print the names of movies that are not in the inventory. 
 -- Write a query without using the IN operator.
@@ -103,12 +103,12 @@ WITH category_rental_time AS (
         SUM(EXTRACT(EPOCH FROM (r.return_date - r.rental_date)) / 3600) AS rental_time_hours
     FROM public.category AS ctg
     JOIN public.film_category AS fc ON fc.category_id = ctg.category_id
-	JOIN public.inventory AS i ON i.film_id = fc.film_id
-	JOIN public.rental AS r ON r.inventory_id = i.inventory_id
-	JOIN public.store AS s ON s.store_id = i.store_id
-    JOIN public.address AS a ON a.address_id = s.address_id
+    JOIN public.inventory AS i ON i.film_id = fc.film_id
+    JOIN public.rental AS r ON r.inventory_id = i.inventory_id
+    JOIN public.customer AS cst ON cst.customer_id = r.customer_id
+    JOIN public.address AS a ON a.address_id = cst.address_id
     JOIN public.city AS c ON c.city_id = a.city_id
-    WHERE LOWER(c.city) LIKE 'a%'
+    WHERE (c.city LIKE 'A%' OR c.city LIKE 'a%')
       AND r.return_date IS NOT NULL
       AND r.rental_date IS NOT NULL
     GROUP BY c.city, ctg.name
@@ -120,10 +120,10 @@ WITH category_rental_time AS (
         SUM(EXTRACT(EPOCH FROM (r.return_date - r.rental_date)) / 3600) AS rental_time_hours
     FROM public.category AS ctg
     JOIN public.film_category AS fc ON fc.category_id = ctg.category_id
-	JOIN public.inventory AS i ON i.film_id = fc.film_id
-	JOIN public.rental AS r ON r.inventory_id = i.inventory_id
-	JOIN public.store AS s ON s.store_id = i.store_id
-    JOIN public.address AS a ON a.address_id = s.address_id
+    JOIN public.inventory AS i ON i.film_id = fc.film_id
+    JOIN public.rental AS r ON r.inventory_id = i.inventory_id
+    JOIN public.customer AS cst ON cst.customer_id = r.customer_id
+    JOIN public.address AS a ON a.address_id = cst.address_id
     JOIN public.city AS c ON c.city_id = a.city_id
     WHERE c.city LIKE '%-%'
       AND r.return_date IS NOT NULL
@@ -146,26 +146,3 @@ SELECT
 FROM category_rank
 WHERE rk = 1
 ORDER BY city_group, city, category_name;
-
-select customer_id
-from customer;
-
-select store_id
-from store;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
