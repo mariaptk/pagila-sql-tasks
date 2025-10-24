@@ -101,13 +101,13 @@ WITH category_rental_time AS (
         c.city,
         'case1' AS city_group,
         SUM(EXTRACT(EPOCH FROM (r.return_date - r.rental_date)) / 3600) AS rental_time_hours
-    FROM public.category AS ctg
-    JOIN public.film_category AS fc ON fc.category_id = ctg.category_id
-    JOIN public.inventory AS i ON i.film_id = fc.film_id
-    JOIN public.rental AS r ON r.inventory_id = i.inventory_id
-    JOIN public.customer AS cst ON cst.customer_id = r.customer_id
-    JOIN public.address AS a ON a.address_id = cst.address_id
-    JOIN public.city AS c ON c.city_id = a.city_id
+    FROM public.category ctg
+    JOIN public.film_category fc ON fc.category_id = ctg.category_id
+    JOIN public.inventory i ON i.film_id = fc.film_id
+    JOIN public.rental r ON r.inventory_id = i.inventory_id
+    JOIN public.customer cst ON cst.customer_id = r.customer_id
+    JOIN public.address a ON a.address_id = cst.address_id
+    JOIN public.city c ON c.city_id = a.city_id
     WHERE (c.city LIKE 'A%' OR c.city LIKE 'a%')
       AND r.return_date IS NOT NULL
       AND r.rental_date IS NOT NULL
@@ -118,13 +118,13 @@ WITH category_rental_time AS (
         c.city,
         'case2' AS city_group,
         SUM(EXTRACT(EPOCH FROM (r.return_date - r.rental_date)) / 3600) AS rental_time_hours
-    FROM public.category AS ctg
-    JOIN public.film_category AS fc ON fc.category_id = ctg.category_id
-    JOIN public.inventory AS i ON i.film_id = fc.film_id
-    JOIN public.rental AS r ON r.inventory_id = i.inventory_id
-    JOIN public.customer AS cst ON cst.customer_id = r.customer_id
-    JOIN public.address AS a ON a.address_id = cst.address_id
-    JOIN public.city AS c ON c.city_id = a.city_id
+    FROM public.category ctg
+    JOIN public.film_category fc ON fc.category_id = ctg.category_id
+    JOIN public.inventory i ON i.film_id = fc.film_id
+    JOIN public.rental r ON r.inventory_id = i.inventory_id
+    JOIN public.customer cst ON cst.customer_id = r.customer_id
+    JOIN public.address a ON a.address_id = cst.address_id
+    JOIN public.city c ON c.city_id = a.city_id
     WHERE c.city LIKE '%-%'
       AND r.return_date IS NOT NULL
       AND r.rental_date IS NOT NULL
