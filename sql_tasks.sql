@@ -116,8 +116,7 @@ case1 AS (
         category_name,
         city,
         'case1' AS city_group,
-        rental_time_hours,
-        DENSE_RANK() OVER (PARTITION BY city ORDER BY rental_time_hours DESC) AS rk
+        rental_time_hours
     FROM base_data
     WHERE LOWER(city) LIKE 'a%'
 ),
@@ -126,18 +125,27 @@ case2 AS (
         category_name,
         city,
         'case2' AS city_group,
-        rental_time_hours,
-        DENSE_RANK() OVER (PARTITION BY city ORDER BY rental_time_hours DESC) AS rk
+        rental_time_hours
     FROM base_data
     WHERE city LIKE '%-%'
+),
+combined_data AS (
+    SELECT * FROM case1
+    UNION ALL 
+    SELECT * FROM case2
+),
+ranked AS (
+    SELECT 
+        city,
+        category_name,
+        city_group,
+        DENSE_RANK() OVER (PARTITION BY city_group, city ORDER BY rental_time_hours DESC) AS rk
+    FROM combined_data
 )
 SELECT 
     city,
     category_name,
     city_group
-FROM (
-    SELECT * FROM case1 WHERE rk = 1
-    UNION ALL
-    SELECT * FROM case2 WHERE rk = 1
-) AS final
+FROM ranked
+WHERE rk = 1
 ORDER BY city_group, city, category_name;
