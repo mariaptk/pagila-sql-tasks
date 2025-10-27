@@ -95,54 +95,49 @@ ORDER BY SUM(CASE WHEN cst.active = 0 THEN 1 ELSE 0 END) DESC;
 -- and that start with the letter “a”. Do the same for cities that 
 -- have a “-” in them. Write everything in one query.
 
-WITH category_rental_time AS (
+WITH base_data AS (
     SELECT 
         ctg.name AS category_name,
         c.city,
-        'case1' AS city_group,
         SUM(EXTRACT(EPOCH FROM (r.return_date - r.rental_date)) / 3600) AS rental_time_hours
-    FROM public.category ctg
-    JOIN public.film_category fc ON fc.category_id = ctg.category_id
-    JOIN public.inventory i ON i.film_id = fc.film_id
-    JOIN public.rental r ON r.inventory_id = i.inventory_id
-    JOIN public.customer cst ON cst.customer_id = r.customer_id
-    JOIN public.address a ON a.address_id = cst.address_id
-    JOIN public.city c ON c.city_id = a.city_id
-    WHERE (c.city LIKE 'A%' OR c.city LIKE 'a%')
-      AND r.return_date IS NOT NULL
+    FROM public.category AS ctg
+    JOIN public.film_category AS fc ON fc.category_id = ctg.category_id
+    JOIN public.inventory AS i ON i.film_id = fc.film_id
+    JOIN public.rental AS r ON r.inventory_id = i.inventory_id
+    JOIN public.customer AS cst ON cst.customer_id = r.customer_id
+    JOIN public.address AS a ON a.address_id = cst.address_id
+    JOIN public.city AS c ON c.city_id = a.city_id
+    WHERE r.return_date IS NOT NULL
       AND r.rental_date IS NOT NULL
-    GROUP BY c.city, ctg.name
-    UNION ALL
-    SELECT 
-        ctg.name AS category_name,
-        c.city,
-        'case2' AS city_group,
-        SUM(EXTRACT(EPOCH FROM (r.return_date - r.rental_date)) / 3600) AS rental_time_hours
-    FROM public.category ctg
-    JOIN public.film_category fc ON fc.category_id = ctg.category_id
-    JOIN public.inventory i ON i.film_id = fc.film_id
-    JOIN public.rental r ON r.inventory_id = i.inventory_id
-    JOIN public.customer cst ON cst.customer_id = r.customer_id
-    JOIN public.address a ON a.address_id = cst.address_id
-    JOIN public.city c ON c.city_id = a.city_id
-    WHERE c.city LIKE '%-%'
-      AND r.return_date IS NOT NULL
-      AND r.rental_date IS NOT NULL
-    GROUP BY c.city, ctg.name
+    GROUP BY ctg.name, c.city
 ),
-category_rank AS (
-    SELECT
-        city,
+case1 AS (
+    SELECT 
         category_name,
-        city_group,
+        city,
+        'case1' AS city_group,
         rental_time_hours,
-        DENSE_RANK() OVER (PARTITION BY city_group, city ORDER BY rental_time_hours DESC) AS rk
-    FROM category_rental_time
+        DENSE_RANK() OVER (PARTITION BY city ORDER BY rental_time_hours DESC) AS rk
+    FROM base_data
+    WHERE LOWER(city) LIKE 'a%'
+),
+case2 AS (
+    SELECT 
+        category_name,
+        city,
+        'case2' AS city_group,
+        rental_time_hours,
+        DENSE_RANK() OVER (PARTITION BY city ORDER BY rental_time_hours DESC) AS rk
+    FROM base_data
+    WHERE city LIKE '%-%'
 )
-SELECT
+SELECT 
     city,
     category_name,
     city_group
-FROM category_rank
-WHERE rk = 1
+FROM (
+    SELECT * FROM case1 WHERE rk = 1
+    UNION ALL
+    SELECT * FROM case2 WHERE rk = 1
+) AS final
 ORDER BY city_group, city, category_name;
