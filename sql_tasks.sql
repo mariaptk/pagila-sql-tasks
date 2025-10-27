@@ -107,8 +107,10 @@ WITH base_data AS (
     JOIN public.customer AS cst ON cst.customer_id = r.customer_id
     JOIN public.address AS a ON a.address_id = cst.address_id
     JOIN public.city AS c ON c.city_id = a.city_id
-    WHERE r.return_date IS NOT NULL
-      AND r.rental_date IS NOT NULL
+    WHERE LOWER(c.city) LIKE 'a%' 
+		AND c.city LIKE '%-%'
+		AND r.return_date IS NOT NULL
+      	AND r.rental_date IS NOT NULL
     GROUP BY ctg.name, c.city
 ),
 case1 AS (
@@ -116,7 +118,8 @@ case1 AS (
         category_name,
         city,
         'case1' AS city_group,
-        rental_time_hours
+        rental_time_hours,
+        DENSE_RANK() OVER (PARTITION BY city ORDER BY rental_time_hours DESC) AS rk
     FROM base_data
     WHERE LOWER(city) LIKE 'a%'
 ),
@@ -125,27 +128,18 @@ case2 AS (
         category_name,
         city,
         'case2' AS city_group,
-        rental_time_hours
+        rental_time_hours,
+        DENSE_RANK() OVER (PARTITION BY city ORDER BY rental_time_hours DESC) AS rk
     FROM base_data
     WHERE city LIKE '%-%'
-),
-combined_data AS (
-    SELECT * FROM case1
-    UNION ALL 
-    SELECT * FROM case2
-),
-ranked AS (
-    SELECT 
-        city,
-        category_name,
-        city_group,
-        DENSE_RANK() OVER (PARTITION BY city_group, city ORDER BY rental_time_hours DESC) AS rk
-    FROM combined_data
 )
 SELECT 
     city,
     category_name,
     city_group
-FROM ranked
-WHERE rk = 1
-ORDER BY city_group, city, category_name;
+FROM (
+    SELECT * FROM case1 WHERE rk = 1
+    UNION ALL
+    SELECT * FROM case2 WHERE rk = 1
+) AS final
+ORDER BY city_group;
